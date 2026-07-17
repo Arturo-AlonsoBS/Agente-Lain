@@ -72,9 +72,31 @@ class DocumentStore:
         print("DocumentStore listo")
 
     def _reset_vectorstore(self):
-        if os.path.exists(settings.chroma_persist_dir):
-            shutil.rmtree(settings.chroma_persist_dir, ignore_errors=True)
-        os.makedirs(settings.chroma_persist_dir, exist_ok=True)
+        # Ensure the chroma directory is writable (fix 'readonly database' on some deployments)
+        try:
+            if os.path.exists(settings.chroma_persist_dir):
+                # try to make files writable before removing
+                for root, dirs, files in os.walk(settings.chroma_persist_dir):
+                    for name in files:
+                        p = os.path.join(root, name)
+                        try:
+                            os.chmod(p, 0o666)
+                        except Exception:
+                            pass
+                shutil.rmtree(settings.chroma_persist_dir, ignore_errors=True)
+        except Exception as e:
+            print(f"Warning cleaning chroma dir: {e}")
+
+        try:
+            os.makedirs(settings.chroma_persist_dir, exist_ok=True)
+            for root, dirs, files in os.walk(settings.chroma_persist_dir):
+                try:
+                    os.chmod(root, 0o777)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Warning creating chroma dir: {e}")
+
         self.vectorstore = Chroma(
             persist_directory=settings.chroma_persist_dir,
             embedding_function=self.embeddings,

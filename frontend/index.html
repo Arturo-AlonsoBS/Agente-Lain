@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pregúntale a Lain</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+try{
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-secondary-container": "#cba9ff",
+          "surface-container-low": "#1a1b21",
+          "error-container": "#93000a",
+          "secondary-fixed": "#ecdcff",
+          "on-secondary-fixed-variant": "#6000bf",
+          "error": "#ffb4ab",
+          "on-tertiary": "#17362f",
+          "primary-fixed-dim": "#00dbe9",
+          "primary": "#dbfcff",
+          "surface-container-high": "#292a2f",
+          "inverse-on-surface": "#2f3036",
+          "on-surface-variant": "#b9cacb",
+          "surface": "#121318",
+          "surface-variant": "#34343a",
+          "surface-container-lowest": "#0d0e13",
+          "surface-bright": "#38393f",
+          "surface-tint": "#00dbe9",
+          "surface-dim": "#121318",
+          "outline-variant": "#3b494b",
+          "inverse-primary": "#006970",
+          "on-secondary": "#430089",
+          "on-tertiary-fixed-variant": "#2e4c45",
+          "primary-fixed": "#7df4ff",
+          "surface-container": "#1e1f25",
+          "on-primary": "#00363a",
+          "surface-container-highest": "#34343a",
+          "secondary": "#d6baff",
+          "inverse-surface": "#e3e1e9",
+          "on-tertiary-fixed": "#01201a",
+          "on-primary-container": "#006970",
+          "on-background": "#e3e1e9",
+          "outline": "#849495",
+          "tertiary-container": "#bfe0d6",
+          "primary-container": "#00f0ff",
+          "on-error-container": "#ffdad6",
+          "secondary-container": "#6205c3",
+          "on-surface": "#e3e1e9",
+          "tertiary": "#dbfdf3",
+          "on-primary-fixed": "#002022",
+          "on-primary-fixed-variant": "#004f54",
+          "tertiary-fixed": "#c8eae0",
+          "tertiary-fixed-dim": "#accdc4",
+          "on-error": "#690005",
+          "on-tertiary-container": "#46645d",
+          "on-secondary-fixed": "#280057",
+          "secondary-fixed-dim": "#d6baff",
+          "background": "#121318"
+        },
+        borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
+        spacing: { "container-max": "1280px", "margin-mobile": "16px", "unit": "4px", "gutter": "24px", "margin-desktop": "48px" },
+        fontFamily: {
+          "body-lg": ["Hanken Grotesk"], "headline-md": ["Space Grotesk"],
+          "headline-lg-mobile": ["Space Grotesk"], "headline-lg": ["Space Grotesk"],
+          "code-sm": ["JetBrains Mono"], "body-md": ["Hanken Grotesk"], "label-md": ["JetBrains Mono"]
+        },
+        fontSize: {
+          "body-lg": ["18px", { lineHeight: "1.6", fontWeight: "400" }],
+          "headline-md": ["24px", { lineHeight: "1.2", fontWeight: "600" }],
+          "headline-lg-mobile": ["32px", { lineHeight: "1.2", fontWeight: "700" }],
+          "headline-lg": ["48px", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "700" }],
+          "code-sm": ["12px", { lineHeight: "1.4", fontWeight: "400" }],
+          "body-md": ["16px", { lineHeight: "1.5", fontWeight: "400" }],
+          "label-md": ["14px", { lineHeight: "1.4", letterSpacing: "0.05em", fontWeight: "500" }]
+        }
+      }
+    }
+  }
+}catch(_e){}
+</script>
+<style>
+  .scanlines {
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.02) 0px,
+      rgba(255,255,255,0.02) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+  .glitch-border { transition: border-color 120ms ease, box-shadow 120ms ease; }
+  .glitch-border:focus-within, .glitch-border:hover {
+    border-color: #00dbe9;
+    box-shadow: 0 0 0 1px rgba(0,219,233,0.25);
+  }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3b494b; border-radius: 4px; }
+  .blink { animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .fade-in { animation: fadeIn 180ms ease-out; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+</style>
+</head>
+<body class="bg-background text-on-surface h-screen w-screen overflow-hidden flex flex-col font-body-lg">
+
+<div class="fixed inset-0 z-50 scanlines mix-blend-overlay pointer-events-none"></div>
+
+<!-- Header -->
+<header class="bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center w-full px-gutter py-2 shrink-0 relative z-40">
+  <div class="font-headline-md text-headline-md tracking-tighter text-primary uppercase cursor-crosshair hover:text-primary transition-colors duration-100">
+    Pregúntale a Lain
+  </div>
+  <div class="flex items-center gap-2 text-on-surface-variant">
+    <button id="new-chat-btn" title="Nueva conversación (borra el historial local)"
+      class="hover:text-primary transition-colors duration-100 cursor-crosshair flex items-center justify-center p-2 rounded-DEFAULT glitch-border border border-transparent">
+      <span class="material-symbols-outlined text-[20px]">restart_alt</span>
+    </button>
+    <button id="export-btn" title="Exportar conversación como JSON"
+      class="hover:text-primary transition-colors duration-100 cursor-crosshair flex items-center justify-center p-2 rounded-DEFAULT glitch-border border border-transparent">
+      <span class="material-symbols-outlined text-[20px]">download</span>
+    </button>
+  </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden relative z-30">
+<main class="flex-1 flex flex-col min-w-0 bg-background relative">
+
+  <!-- Sidebar de contexto -->
+  <div class="absolute top-0 right-0 w-80 h-full border-l border-outline-variant bg-surface-container-lowest p-6 hidden xl:flex flex-col gap-6 z-20">
+    <div>
+      <h3 class="font-label-md text-label-md uppercase text-primary mb-2 border-b border-outline-variant pb-2">Agent Initialization</h3>
+      <p class="font-code-sm text-code-sm text-on-surface-variant">Lain es un agente de IA (Gemini) configurado para leer documentos PDF y CSV. Preguntale lo que necesites saber sobre lo que subiste.</p>
+    </div>
+
+    <div class="glitch-border p-4 bg-surface-container-low border border-outline-variant">
+      <h4 class="font-code-sm text-code-sm text-tertiary mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">description</span> Current Buffer
+      </h4>
+      <div id="buffer-empty" class="font-code-sm text-code-sm text-on-surface-variant/70 italic">
+        Ningún documento cargado
+      </div>
+      <div id="buffer-content" class="hidden">
+        <div class="flex items-center gap-2 bg-surface p-2 border border-outline-variant">
+          <span id="buffer-icon" class="material-symbols-outlined text-primary text-[18px]">picture_as_pdf</span>
+          <span id="buffer-name" class="font-code-sm text-code-sm text-on-surface truncate"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-auto">
+      <div class="w-full h-32 relative border border-outline-variant bg-surface-dim overflow-hidden">
+        <div class="absolute inset-0 flex items-center justify-center flex-col">
+          <span class="material-symbols-outlined text-outline-variant text-[40px]">psychology</span>
+          <span class="font-code-sm text-code-sm text-outline-variant mt-1">LAIN_SYSTEM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- area de chat -->
+  <div class="flex-1 flex flex-col p-4 md:p-6 lg:p-8 xl:pr-[340px] max-w-[1200px] w-full mx-auto relative overflow-hidden">
+
+    <div class="flex-1 border border-outline-variant bg-surface-container-low flex flex-col overflow-hidden relative shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+      <div class="bg-surface-container-highest border-b border-outline-variant px-4 py-2 flex justify-between items-center shrink-0">
+        <span class="font-code-sm text-code-sm text-on-surface-variant tracking-widest">LAIN_TERMINAL</span>
+        <span id="conn-status" class="font-code-sm text-code-sm text-outline-variant">connecting...</span>
+      </div>
+
+      <div id="chat-scroll" class="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 relative">
+        <div id="chat-messages" class="flex flex-col gap-6"></div>
+
+        <div id="typing-indicator" class="hidden flex items-start gap-4">
+          <div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest border border-outline-variant flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-tertiary">psychology</span>
+          </div>
+          <div class="flex-1 max-w-[85%]">
+            <div class="font-label-md text-label-md text-tertiary mb-1">LAIN_SYSTEM</div>
+            <div class="font-code-sm text-code-sm text-on-surface-variant py-2 flex items-center gap-2">
+              Procesando<span class="blink">_</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="mt-4 border border-outline-variant bg-surface-container-low p-4 shrink-0 relative z-30">
+      <div class="flex justify-between items-center mb-3 font-code-sm text-code-sm text-on-surface-variant min-h-[16px]">
+        <span id="doc-status-bar"></span>
+        <span id="error-bar" class="text-error"></span>
+      </div>
+      <div class="flex items-end gap-3">
+        <input id="file-input" type="file" accept=".pdf,.csv" class="hidden" />
+        <button id="upload-btn" title="Subir PDF o CSV"
+          class="w-12 h-12 bg-surface border border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center rounded-DEFAULT shrink-0">
+          <span class="material-symbols-outlined text-[24px]">add</span>
+        </button>
+        <div class="flex-1 relative group">
+          <textarea id="chat-input"
+            class="w-full bg-surface border border-outline-variant focus:border-primary focus:ring-0 text-on-surface font-body-md text-body-md p-3 pr-12 rounded-DEFAULT resize-none h-12 min-h-[48px] placeholder:text-on-surface-variant/50 glitch-border"
+            placeholder="Hola, en qué puedo ayudarte..." rows="1"></textarea>
+          <button id="send-btn" title="Enviar"
+            class="absolute right-2 bottom-2 text-primary p-1 hover:bg-surface-variant rounded-DEFAULT transition-colors">
+            <span class="material-symbols-outlined">send</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<script>
+
+// config
+
+const API_URL = "http://localhost:8000"; 
+
+const LS_HISTORY = "lain_history";
+const LS_INTERACTION = "lain_interaction_id";
+const LS_DOCUMENT = "lain_document";
+
+// elementos
+const chatMessagesEl = document.getElementById("chat-messages");
+const chatScrollEl = document.getElementById("chat-scroll");
+const typingEl = document.getElementById("typing-indicator");
+const inputEl = document.getElementById("chat-input");
+const sendBtn = document.getElementById("send-btn");
+const uploadBtn = document.getElementById("upload-btn");
+const fileInput = document.getElementById("file-input");
+const docStatusBar = document.getElementById("doc-status-bar");
+const errorBar = document.getElementById("error-bar");
+const connStatus = document.getElementById("conn-status");
+const newChatBtn = document.getElementById("new-chat-btn");
+const exportBtn = document.getElementById("export-btn");
+
+const bufferEmpty = document.getElementById("buffer-empty");
+const bufferContent = document.getElementById("buffer-content");
+const bufferIcon = document.getElementById("buffer-icon");
+const bufferName = document.getElementById("buffer-name");
+
+//estado (localStorage)
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; }
+  catch { return []; }
+}
+function saveHistory(history) {
+  localStorage.setItem(LS_HISTORY, JSON.stringify(history));
+}
+function getInteractionId() { return localStorage.getItem(LS_INTERACTION) || null; }
+function setInteractionId(id) {
+  if (id) localStorage.setItem(LS_INTERACTION, id);
+}
+function clearInteractionId() { localStorage.removeItem(LS_INTERACTION); }
+
+function getDocument() {
+  try { return JSON.parse(localStorage.getItem(LS_DOCUMENT)); }
+  catch { return null; }
+}
+function saveDocument(doc) { localStorage.setItem(LS_DOCUMENT, JSON.stringify(doc)); }
+
+let history = loadHistory();
+
+//render
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderMessage(msg, animate = false) {
+  const wrap = document.createElement("div");
+  wrap.className = "flex items-start gap-4" + (msg.role === "user" ? " flex-row-reverse" : "") + (animate ? " fade-in" : "");
+
+  if (msg.role === "user") {
+    wrap.innerHTML = `
+      <div class="w-10 h-10 rounded-DEFAULT bg-primary-container/10 border border-primary flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-primary">person</span>
+      </div>
+      <div class="flex-1 max-w-[85%] flex flex-col items-end">
+        <div class="font-label-md text-label-md text-primary mb-1">TÚ</div>
+        <div class="bg-[#10243e] border border-primary/50 p-4 font-body-md text-body-md text-on-surface rounded-l-lg rounded-br-lg relative overflow-hidden">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none"></div>
+          <p class="relative z-10 whitespace-pre-wrap">${escapeHtml(msg.text)}</p>
+        </div>
+      </div>`;
+  } else if (msg.role === "system") {
+    wrap.innerHTML = `
+      <div class="w-full text-center font-code-sm text-code-sm text-on-surface-variant/60 py-1">
+        ${escapeHtml(msg.text)}
+      </div>`;
+    wrap.className = "flex justify-center" + (animate ? " fade-in" : "");
+  } else {
+    const sourcesHtml = (msg.sources && msg.sources.length)
+      ? `<p class="font-code-sm text-code-sm text-on-surface-variant border-l-2 border-tertiary pl-2 mt-3 bg-surface p-2">
+           &gt; SOURCES: ${msg.sources.map(escapeHtml).join(", ")}
+         </p>`
+      : "";
+    wrap.innerHTML = `
+      <div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest border border-outline-variant flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-tertiary">psychology</span>
+      </div>
+      <div class="flex-1 max-w-[85%]">
+        <div class="font-label-md text-label-md text-tertiary mb-1">LAIN_SYSTEM</div>
+        <div class="bg-surface-variant border border-outline-variant p-4 font-body-md text-body-md text-on-surface rounded-r-lg rounded-bl-lg">
+          <p class="whitespace-pre-wrap">${escapeHtml(msg.text)}</p>
+          ${sourcesHtml}
+        </div>
+      </div>`;
+  }
+  chatMessagesEl.appendChild(wrap);
+}
+
+function renderAll() {
+  chatMessagesEl.innerHTML = "";
+  if (history.length === 0) {
+    renderMessage({
+      role: "assistant",
+      text: "Protocolo inicial cargado. Subí un PDF o CSV con el botón + y preguntame lo que quieras sobre su contenido.",
+      sources: []
+    });
+  } else {
+    history.forEach(m => renderMessage(m));
+  }
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  chatScrollEl.scrollTop = chatScrollEl.scrollHeight;
+}
+
+function renderBuffer() {
+  const doc = getDocument();
+  if (!doc) {
+    bufferEmpty.classList.remove("hidden");
+    bufferContent.classList.add("hidden");
+    docStatusBar.textContent = "";
+    return;
+  }
+  bufferEmpty.classList.add("hidden");
+  bufferContent.classList.remove("hidden");
+  bufferIcon.textContent = doc.type === "csv" ? "table_view" : "picture_as_pdf";
+  bufferName.textContent = doc.name;
+  docStatusBar.textContent = `📄 Documento cargado: ${doc.name}`;
+}
+
+function showError(msg) {
+  errorBar.textContent = msg;
+  setTimeout(() => { errorBar.textContent = ""; }, 5000);
+}
+
+//API
+
+async function checkHealth() {
+  try {
+    const res = await fetch(`${API_URL}/health`);
+    if (!res.ok) throw new Error("bad status");
+    const data = await res.json();
+    connStatus.textContent = "online";
+    connStatus.classList.remove("text-error");
+    connStatus.classList.add("text-primary");
+
+    if (data.documents_loaded && data.documents_loaded.length && !getDocument()) {
+      saveDocument({ name: data.documents_loaded[data.documents_loaded.length - 1], type: "pdf", chunks: "—", size_kb: null });
+      renderBuffer();
+    }
+  } catch (e) {
+    connStatus.textContent = "offline — ¿corriste el backend?";
+    connStatus.classList.remove("text-primary");
+    connStatus.classList.add("text-error");
+  }
+}
+
+async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const ext = file.name.split(".").pop().toLowerCase();
+  
+  //inicio de carga
+  history.push({ role: "system", text: `Subiendo ${file.name}...` });
+  saveHistory(history);
+  renderAll();
+
+  try {
+    const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al subir el archivo");
+    }
+    const data = await res.json();
+
+    saveDocument({ name: data.filename, type: ext, chunks: data.chunks, size_kb: data.size_kb });
+    renderBuffer();
+
+    history.push({
+      role: "system",
+      text: `Subiendo ${file.name}...\nSubido correctamente.`
+    });
+    saveHistory(history);
+    renderAll();
+    
+  } catch (e) {
+    showError(e.message);
+    history.push({ 
+      role: "system", 
+      text: `Subiendo ${file.name}...\nError subiendo el archivo: ${e.message}` 
+    });
+    saveHistory(history);
+    renderAll();
+  }
+}
+
+async function askQuestion(question) {
+  history.push({ role: "user", text: question });
+  saveHistory(history);
+  renderAll();
+
+  typingEl.classList.remove("hidden");
+  scrollToBottom();
+
+  try {
+    const res = await fetch(`${API_URL}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        previous_interaction_id: getInteractionId()
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al consultar a Lain");
+    }
+
+    const data = await res.json();
+    setInteractionId(data.interaction_id);
+
+    history.push({ role: "assistant", text: data.answer, sources: data.sources });
+    saveHistory(history);
+  } catch (e) {
+    showError(e.message);
+    history.push({ role: "assistant", text: `[ERROR] ${e.message}`, sources: [] });
+    saveHistory(history);
+  } finally {
+    typingEl.classList.add("hidden");
+    renderAll();
+  }
+}
+
+// Eventos
+
+function handleSend() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  inputEl.value = "";
+  inputEl.style.height = "48px";
+  askQuestion(text);
+}
+
+sendBtn.addEventListener("click", handleSend);
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    handleSend();
+  }
+});
+
+uploadBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) {
+    uploadFile(fileInput.files[0]);
+    fileInput.value = "";
+  }
+});
+
+newChatBtn.addEventListener("click", () => {
+  if (!confirm("¿Borrar el historial de esta conversación? (el documento indexado sigue disponible)")) return;
+  history = [];
+  saveHistory(history);
+  clearInteractionId();
+  renderAll();
+});
+
+exportBtn.addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(history, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `lain_conversacion_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+inputEl.addEventListener("input", function () {
+  this.style.height = "48px";
+  this.style.height = this.scrollHeight + "px";
+});
+
+//init
+
+renderBuffer();
+renderAll();
+checkHealth();
+</script>
+</body>
+</html>

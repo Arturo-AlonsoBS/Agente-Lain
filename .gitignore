@@ -1,0 +1,14 @@
+# Entorno virtual y caché de Python en el backend
+backend/.env
+backend/__pycache__/
+backend/*.pyc
+backend/venv/
+backend/.venv/
+
+# Base de datos local y documentos cargados
+backend/data/chroma_db/
+backend/data/docs/*
+!backend/data/docs/.gitkeep
+
+
+README.md

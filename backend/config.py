@@ -4,7 +4,7 @@ Configuración centralizada. Lee variables desde .env
 import os
 from pydantic_settings import BaseSettings
 from typing import List
-
+IS_RENDER = "RENDER" in os.environ
 
 class Settings(BaseSettings):
     # Gemini

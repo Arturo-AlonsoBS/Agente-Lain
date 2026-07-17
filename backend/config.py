@@ -6,7 +6,7 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    #Gemini
+    # Gemini
     gemini_api_key: str = ""
     llm_model: str = "gemini-3.5-flash"
 
@@ -15,13 +15,20 @@ class Settings(BaseSettings):
     docs_path: str = "./data/docs"
     chunk_size: int = 800
     chunk_overlap: int = 150
-    top_k: int = 4
+    top_k: int = 8
+
+
+    # cantidad máxima de tokens que se mandan a Gemini en cada pregunta (RAG)
+    llm_max_output_tokens: int = 3000
+
+    # Máximo de caracteres que se mandan a Gemini en modo "contexto completo"
+    full_context_char_limit: int = 60000
 
     # API
     api_title: str = "Pregúntale a Lain"
     host: str = "0.0.0.0"
     port: int = 8000
-    cors_origins: List[str] = ["*"] 
+    cors_origins: List[str] = ["*"]
 
     class Config:
         env_file = ".env"

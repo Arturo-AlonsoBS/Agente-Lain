@@ -7,7 +7,6 @@ Endpoints:
   POST /ask              -> hacer una pregunta (RAG + Gemini)
 """
 import os
-import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -57,7 +56,7 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     sources: List[str]
-    interaction_id: str
+    interaction_id: Optional[str] = None
 
 
 class DocumentInfo(BaseModel):
@@ -66,7 +65,7 @@ class DocumentInfo(BaseModel):
     type: str
 
 
-# Endpoints 
+# Endpoints
 
 @app.get("/health")
 async def health():
@@ -126,15 +125,10 @@ async def ask(request: AskRequest):
     if not question:
         raise HTTPException(400, "La pregunta no puede estar vacía")
 
-    # 1. RAG: buscar contexto relevante
-    relevant_docs = store.search(question)
-    context = "\n\n---\n\n".join(
-        f"[{d.metadata.get('source_doc', 'desconocido')}] {d.page_content[:600]}"
-        for d in relevant_docs
-    )
-    sources = sorted({d.metadata.get("source_doc", "desconocido") for d in relevant_docs})
+    # 1. Contexto: documento completo si es chico, RAG por chunks si es grande
+    context, sources = store.build_context(question, k=settings.top_k)
 
-    # 2. Generar respuesta con Gemini (mantiene contexto vía previous_interaction_id)
+    # 2. Generar respuesta con Gemini
     try:
         result = client.ask(
             question=question,

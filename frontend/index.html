@@ -101,10 +101,37 @@ try{
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #3b494b; border-radius: 4px; }
+
+  textarea#chat-input {
+    background: #121318;
+    border-color: #3b494b;
+    color: #e3e1e9;
+    scrollbar-width: thin;
+    scrollbar-color: #3b494b transparent;
+    max-height: 96px;
+    overflow-y: auto;
+  }
+  textarea#chat-input::-webkit-scrollbar { width: 8px; }
+  textarea#chat-input::-webkit-scrollbar-track { background: transparent; }
+  textarea#chat-input::-webkit-scrollbar-thumb { background: #3b494b; border-radius: 999px; }
+
+  #upload-status {
+    max-height: 8rem; 
+    overflow-y: auto;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    scrollbar-width: thin;
+    scrollbar-color: #3b494b transparent;
+  }
+  #upload-status::-webkit-scrollbar { width: 6px; }
+  #upload-status::-webkit-scrollbar-track { background: transparent; }
+  #upload-status::-webkit-scrollbar-thumb { background: #3b494b; border-radius: 999px; }
   .blink { animation: blink 1.2s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .fade-in { animation: fadeIn 180ms ease-out; }
   @keyframes fadeIn { from { opacity:0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+  .fade-out { animation: fadeOut 500ms ease-out forwards; }
+  @keyframes fadeOut { from { opacity:1; transform: translateY(0);} to {opacity:0; transform: translateY(8px);} }
 </style>
 </head>
 <body class="bg-background text-on-surface h-screen w-screen overflow-hidden flex flex-col font-body-lg">
@@ -134,13 +161,13 @@ try{
   <!-- Sidebar de contexto -->
   <div class="absolute top-0 right-0 w-80 h-full border-l border-outline-variant bg-surface-container-lowest p-6 hidden xl:flex flex-col gap-6 z-20">
     <div>
-      <h3 class="font-label-md text-label-md uppercase text-primary mb-2 border-b border-outline-variant pb-2">Agent Initialization</h3>
+      <h3 class="font-label-md text-label-md uppercase text-primary mb-2 border-b border-outline-variant pb-2">Agente Lain</h3>
       <p class="font-code-sm text-code-sm text-on-surface-variant">Lain es un agente de IA (Gemini) configurado para leer documentos PDF y CSV. Preguntale lo que necesites saber sobre lo que subiste.</p>
     </div>
 
     <div class="glitch-border p-4 bg-surface-container-low border border-outline-variant">
       <h4 class="font-code-sm text-code-sm text-tertiary mb-3 flex items-center gap-2">
-        <span class="material-symbols-outlined text-[16px]">description</span> Current Buffer
+        <span class="material-symbols-outlined text-[16px]">description</span>Documento cargado
       </h4>
       <div id="buffer-empty" class="font-code-sm text-code-sm text-on-surface-variant/70 italic">
         Ningún documento cargado
@@ -151,6 +178,13 @@ try{
           <span id="buffer-name" class="font-code-sm text-code-sm text-on-surface truncate"></span>
         </div>
       </div>
+    </div>
+
+    <div id="upload-status-card" class="glitch-border p-4 bg-surface-container-low border border-outline-variant rounded-xl hidden">
+      <h4 class="font-code-sm text-code-sm text-tertiary mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">info</span>Estado
+      </h4>
+      <div id="upload-status" class="font-code-sm text-code-sm text-on-surface-variant/70 italic min-h-[2rem] p-2"></div>
     </div>
 
     <div class="mt-auto">
@@ -191,14 +225,10 @@ try{
 
     <!-- Input -->
     <div class="mt-4 border border-outline-variant bg-surface-container-low p-4 shrink-0 relative z-30">
-      <div class="flex justify-between items-center mb-3 font-code-sm text-code-sm text-on-surface-variant min-h-[16px]">
-        <span id="doc-status-bar"></span>
-        <span id="error-bar" class="text-error"></span>
-      </div>
       <div class="flex items-end gap-3">
         <input id="file-input" type="file" accept=".pdf,.csv" class="hidden" />
         <button id="upload-btn" title="Subir PDF o CSV"
-          class="w-12 h-12 bg-surface border border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center rounded-DEFAULT shrink-0">
+          class="w-16 h-16 bg-surface border border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center rounded-DEFAULT shrink-0">
           <span class="material-symbols-outlined text-[24px]">add</span>
         </button>
         <div class="flex-1 relative group">
@@ -234,8 +264,6 @@ const inputEl = document.getElementById("chat-input");
 const sendBtn = document.getElementById("send-btn");
 const uploadBtn = document.getElementById("upload-btn");
 const fileInput = document.getElementById("file-input");
-const docStatusBar = document.getElementById("doc-status-bar");
-const errorBar = document.getElementById("error-bar");
 const connStatus = document.getElementById("conn-status");
 const newChatBtn = document.getElementById("new-chat-btn");
 const exportBtn = document.getElementById("export-btn");
@@ -244,6 +272,9 @@ const bufferEmpty = document.getElementById("buffer-empty");
 const bufferContent = document.getElementById("buffer-content");
 const bufferIcon = document.getElementById("buffer-icon");
 const bufferName = document.getElementById("buffer-name");
+const uploadStatusEl = document.getElementById("upload-status");
+
+let statusTimeout = null;
 
 //estado (localStorage)
 function loadHistory() {
@@ -264,6 +295,8 @@ function getDocument() {
   catch { return null; }
 }
 function saveDocument(doc) { localStorage.setItem(LS_DOCUMENT, JSON.stringify(doc)); }
+function removeDocument() { localStorage.removeItem(LS_DOCUMENT); }
+function setDocument(doc) { saveDocument(doc); renderBuffer(); }
 
 let history = loadHistory();
 
@@ -297,11 +330,6 @@ function renderMessage(msg, animate = false) {
       </div>`;
     wrap.className = "flex justify-center" + (animate ? " fade-in" : "");
   } else {
-    const sourcesHtml = (msg.sources && msg.sources.length)
-      ? `<p class="font-code-sm text-code-sm text-on-surface-variant border-l-2 border-tertiary pl-2 mt-3 bg-surface p-2">
-           &gt; SOURCES: ${msg.sources.map(escapeHtml).join(", ")}
-         </p>`
-      : "";
     wrap.innerHTML = `
       <div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest border border-outline-variant flex items-center justify-center shrink-0">
         <span class="material-symbols-outlined text-tertiary">psychology</span>
@@ -310,11 +338,11 @@ function renderMessage(msg, animate = false) {
         <div class="font-label-md text-label-md text-tertiary mb-1">LAIN_SYSTEM</div>
         <div class="bg-surface-variant border border-outline-variant p-4 font-body-md text-body-md text-on-surface rounded-r-lg rounded-bl-lg">
           <p class="whitespace-pre-wrap">${escapeHtml(msg.text)}</p>
-          ${sourcesHtml}
         </div>
       </div>`;
   }
   chatMessagesEl.appendChild(wrap);
+  return wrap;
 }
 
 function renderAll() {
@@ -322,7 +350,7 @@ function renderAll() {
   if (history.length === 0) {
     renderMessage({
       role: "assistant",
-      text: "Protocolo inicial cargado. Subí un PDF o CSV con el botón + y preguntame lo que quieras sobre su contenido.",
+      text: "Hola, soy Lain. Subí un PDF o CSV y preguntame lo que quieras sobre su contenido.",
       sources: []
     });
   } else {
@@ -330,6 +358,7 @@ function renderAll() {
   }
   scrollToBottom();
 }
+
 
 function scrollToBottom() {
   chatScrollEl.scrollTop = chatScrollEl.scrollHeight;
@@ -340,19 +369,38 @@ function renderBuffer() {
   if (!doc) {
     bufferEmpty.classList.remove("hidden");
     bufferContent.classList.add("hidden");
-    docStatusBar.textContent = "";
     return;
   }
   bufferEmpty.classList.add("hidden");
   bufferContent.classList.remove("hidden");
   bufferIcon.textContent = doc.type === "csv" ? "table_view" : "picture_as_pdf";
   bufferName.textContent = doc.name;
-  docStatusBar.textContent = `📄 Documento cargado: ${doc.name}`;
 }
 
-function showError(msg) {
-  errorBar.textContent = msg;
-  setTimeout(() => { errorBar.textContent = ""; }, 5000);
+function showStatus(msg, type = "info", duration = 20000) {
+  const statusCard = document.getElementById("upload-status-card");
+  if (!uploadStatusEl || !statusCard) return;
+  clearTimeout(statusTimeout);
+  uploadStatusEl.textContent = msg;
+  uploadStatusEl.classList.remove("text-error", "text-primary", "text-tertiary", "text-on-surface-variant/70");
+  if (type === "error") {
+    uploadStatusEl.classList.add("text-error");
+  } else if (type === "success") {
+    uploadStatusEl.classList.add("text-primary");
+  } else {
+    uploadStatusEl.classList.add("text-on-surface-variant/70");
+  }
+  statusCard.classList.remove("hidden");
+  if (duration > 0) {
+    statusTimeout = setTimeout(() => {
+      statusCard.classList.add("fade-out");
+      setTimeout(() => {
+        statusCard.classList.add("hidden");
+        statusCard.classList.remove("fade-out");
+        uploadStatusEl.textContent = "";
+      }, 500);
+    }, duration);
+  }
 }
 
 //API
@@ -366,12 +414,12 @@ async function checkHealth() {
     connStatus.classList.remove("text-error");
     connStatus.classList.add("text-primary");
 
-    if (data.documents_loaded && data.documents_loaded.length && !getDocument()) {
-      saveDocument({ name: data.documents_loaded[data.documents_loaded.length - 1], type: "pdf", chunks: "—", size_kb: null });
-      renderBuffer();
+    if (data.documents_loaded && data.documents_loaded.length) {
+      const backendName = data.documents_loaded[data.documents_loaded.length - 1];
+      setDocument({ name: backendName, type: "pdf", chunks: "—", size_kb: null });
     }
   } catch (e) {
-    connStatus.textContent = "offline — ¿corriste el backend?";
+    connStatus.textContent = "offline — revisar el backend :c";
     connStatus.classList.remove("text-primary");
     connStatus.classList.add("text-error");
   }
@@ -384,10 +432,7 @@ async function uploadFile(file) {
   const ext = file.name.split(".").pop().toLowerCase();
   
   //inicio de carga
-  history.push({ role: "system", text: `Subiendo ${file.name}...` });
-  saveHistory(history);
-  renderAll();
-
+  showStatus(`Subiendo ${file.name}...`, "info", 10000);
   try {
     const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
     if (!res.ok) {
@@ -396,24 +441,10 @@ async function uploadFile(file) {
     }
     const data = await res.json();
 
-    saveDocument({ name: data.filename, type: ext, chunks: data.chunks, size_kb: data.size_kb });
-    renderBuffer();
-
-    history.push({
-      role: "system",
-      text: `Subiendo ${file.name}...\nSubido correctamente.`
-    });
-    saveHistory(history);
-    renderAll();
-    
+    setDocument({ name: data.filename, type: ext, chunks: data.chunks, size_kb: data.size_kb });
+    showStatus(`Subido ${file.name}`, "success", 20000);
   } catch (e) {
-    showError(e.message);
-    history.push({ 
-      role: "system", 
-      text: `Subiendo ${file.name}...\nError subiendo el archivo: ${e.message}` 
-    });
-    saveHistory(history);
-    renderAll();
+    showStatus(`Error subiendo ${file.name}: ${e.message}`, "error", 20000);
   }
 }
 
@@ -446,9 +477,7 @@ async function askQuestion(question) {
     history.push({ role: "assistant", text: data.answer, sources: data.sources });
     saveHistory(history);
   } catch (e) {
-    showError(e.message);
-    history.push({ role: "assistant", text: `[ERROR] ${e.message}`, sources: [] });
-    saveHistory(history);
+    showStatus(`Error: ${e.message}`, "error", 20000);
   } finally {
     typingEl.classList.add("hidden");
     renderAll();

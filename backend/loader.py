@@ -1,19 +1,19 @@
 """
-Carga documentos (PDF o CSV), se indexa en ChromaDB.
+Carga documentos (PDF o CSV), se indexa en ChromaDB (solo si hace falta).
 
 Modo híbrido de contexto:
 - Si el documento (o los documentos) cargados entran dentro de
   `settings.full_context_char_limit`, se manda el TEXTO COMPLETO a Gemini.
   Esto evita que documentos cortos (resúmenes, apuntes) se "corten" a mitad
-  de una sección por culpa del chunking + ranking de embeddings.
-- Si el documento es grande y no entra, se usa búsqueda semántica por
-  fragmentos (RAG clásico) como antes.
+  de una sección por culpa del chunking + ranking de embeddings, Y ADEMÁS
+  evita tener que tocar ChromaDB para nada en el caso común.
+- Si el documento es grande y no entra, ahí sí se usa ChromaDB en memoria
+  (sin persistir a disco) para hacer búsqueda semántica por fragmentos.
 """
 import csv
 import os
-import shutil
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import pdfplumber
 from langchain.schema import Document
@@ -25,13 +25,6 @@ from config import settings
 
 
 class LocalHashingEmbeddings:
-    """Embeddings locales livianos para evitar dependencias de modelos externos.
-
-    OJO: esto es una bolsa de palabras con hashing, NO embeddings semánticos
-    reales. Sirve como fallback rápido para documentos grandes, pero no
-    entiende sinónimos ni relaciones de significado. Para documentos chicos
-    no importa porque usamos el modo de "contexto completo" (ver build_context).
-    """
 
     def __init__(self, n_features: int = 512):
         self.vectorizer = HashingVectorizer(
@@ -53,13 +46,10 @@ class DocumentStore:
     """Gestiona la carga, indexado y búsqueda de documentos (PDF/CSV)."""
 
     def __init__(self):
-        os.makedirs(settings.chroma_persist_dir, exist_ok=True)
         os.makedirs(settings.docs_path, exist_ok=True)
 
         print("Cargando embeddings locales livianos...")
         self.embeddings = LocalHashingEmbeddings()
-
-        self._reset_vectorstore()
 
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.chunk_size,
@@ -69,36 +59,12 @@ class DocumentStore:
 
         self.loaded_docs = {}   # nombre -> {chunks, type}
         self.full_texts = {}    # nombre -> texto completo del documento
+        self.vectorstore: Optional[Chroma] = None  # solo se crea si hace falta
         print("DocumentStore listo")
 
-    def _reset_vectorstore(self):
-        # Ensure the chroma directory is writable (fix 'readonly database' on some deployments)
-        try:
-            if os.path.exists(settings.chroma_persist_dir):
-                # try to make files writable before removing
-                for root, dirs, files in os.walk(settings.chroma_persist_dir):
-                    for name in files:
-                        p = os.path.join(root, name)
-                        try:
-                            os.chmod(p, 0o666)
-                        except Exception:
-                            pass
-                shutil.rmtree(settings.chroma_persist_dir, ignore_errors=True)
-        except Exception as e:
-            print(f"Warning cleaning chroma dir: {e}")
+    def _new_vectorstore(self) -> Chroma:
 
-        try:
-            os.makedirs(settings.chroma_persist_dir, exist_ok=True)
-            for root, dirs, files in os.walk(settings.chroma_persist_dir):
-                try:
-                    os.chmod(root, 0o777)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"Warning creating chroma dir: {e}")
-
-        self.vectorstore = Chroma(
-            persist_directory=settings.chroma_persist_dir,
+        return Chroma(
             embedding_function=self.embeddings,
             collection_name="lain_documents",
         )
@@ -106,14 +72,7 @@ class DocumentStore:
     # ---------- Carga ----------
 
     def _load_pdf(self, path: str) -> List[Document]:
-        """
-        Usa pdfplumber (no pypdf) porque reconstruye los espacios entre
-        palabras a partir de la posición real de cada carácter en la
-        página. pypdf, con PDFs generados por ciertos editores (ej. Google
-        Docs exportado), puede devolver el texto completamente pegado
-        ("Unatransacciónsecon..."), lo que vuelve el contexto casi
-        ilegible para el modelo aunque el contenido esté completo.
-        """
+
         docs: List[Document] = []
 
         with pdfplumber.open(path) as pdf:
@@ -148,7 +107,8 @@ class DocumentStore:
         return docs
 
     def load_file(self, path: str) -> int:
-        """Carga un archivo (PDF o CSV), lo indexa y guarda su texto completo."""
+        """Carga un archivo (PDF o CSV), guarda su texto completo y (si
+        hace falta) lo indexa en Chroma."""
         ext = Path(path).suffix.lower()
         name = Path(path).name
 
@@ -167,6 +127,7 @@ class DocumentStore:
         # Solo un documento activo a la vez: se limpia lo anterior.
         self.loaded_docs.clear()
         self.full_texts.clear()
+        self.vectorstore = None
         try:
             for f in Path(settings.docs_path).glob("*"):
                 if f.is_file() and f.name != name:
@@ -174,14 +135,19 @@ class DocumentStore:
         except Exception as e:
             print(f"Error al limpiar directorio físico: {e}")
 
-        self._reset_vectorstore()
-        self.vectorstore.add_documents(chunks)
-        self.vectorstore.persist()
+        full_text = "\n\n".join(c.page_content for c in chunks)
+        self.full_texts[name] = full_text
 
-        self.full_texts[name] = "\n\n".join(c.page_content for c in chunks)
+        # Solo tocamos Chroma si el documento NO entra en modo "contexto completo"
+        if len(full_text) > settings.full_context_char_limit:
+            print("Documento grande: indexando en Chroma (en memoria) para RAG por chunks...")
+            self.vectorstore = self._new_vectorstore()
+            self.vectorstore.add_documents(chunks)
+        else:
+            print("Documento chico: se usará modo 'contexto completo', sin indexar en Chroma.")
 
         self.loaded_docs[name] = {"chunks": len(chunks), "type": doc_type}
-        print(f"{name} indexado ({len(chunks)} chunks, tipo {doc_type})")
+        print(f"{name} cargado ({len(chunks)} chunks, tipo {doc_type})")
         return len(chunks)
 
     def load_all_from_docs_dir(self):
@@ -211,7 +177,7 @@ class DocumentStore:
 
     def search(self, query: str, k: int = None) -> List[Document]:
         k = k or settings.top_k
-        if not self.loaded_docs:
+        if not self.loaded_docs or self.vectorstore is None:
             return []
         return self.vectorstore.similarity_search(query, k=k)
 
@@ -219,10 +185,8 @@ class DocumentStore:
         """
         Devuelve (contexto, fuentes) listo para mandarle a Gemini.
 
-        - Documento(s) chico(s) (entran en full_context_char_limit):
-          se manda el texto COMPLETO. Más lento/costoso por token, pero
-          100% confiable: nunca se "corta" una sección a la mitad.
-        - Documento grande: RAG clásico por fragmentos (similarity_search).
+        - Document chico en full_context_char_limit
+        - Documento grande: RAG.
         """
         if not self.loaded_docs:
             return "", []
@@ -245,10 +209,12 @@ class DocumentStore:
         return context, sources
 
     def stats(self) -> dict:
-        try:
-            total = len(self.vectorstore.get()["documents"])
-        except Exception:
-            total = 0
+        total = 0
+        if self.vectorstore is not None:
+            try:
+                total = len(self.vectorstore.get()["documents"])
+            except Exception:
+                total = 0
         return {"documents": self.loaded_docs, "total_chunks": total}
 
 

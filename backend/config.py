@@ -4,7 +4,30 @@ Configuración centralizada. Lee variables desde .env
 import os
 from pydantic_settings import BaseSettings
 from typing import List
+
 IS_RENDER = "RENDER" in os.environ
+
+def _writable_tmp_dir() -> str | None:
+    """Retorna /tmp si es un directorio writable en este entorno."""
+    if os.name == "nt":
+        return None
+    tmp = "/tmp"
+    if os.path.isdir(tmp) and os.access(tmp, os.W_OK | os.X_OK):
+        return tmp
+    return None
+
+
+def _default_dir(env_var: str, fallback: str) -> str:
+    explicit = os.getenv(env_var)
+    if explicit:
+        return explicit
+
+    tmp_dir = _writable_tmp_dir()
+    if tmp_dir is not None:
+        return os.path.join(tmp_dir, fallback)
+
+    return os.path.join(".", "data", fallback)
+
 
 class Settings(BaseSettings):
     # Gemini
@@ -12,8 +35,8 @@ class Settings(BaseSettings):
     llm_model: str = "gemma-4-31b-it"
 
     # RAG
-    chroma_persist_dir: str = "/tmp/chroma_db" if IS_RENDER else "./data/chroma_db"
-    docs_path: str = "/tmp/docs" if IS_RENDER else "./data/docs"
+    chroma_persist_dir: str = _default_dir("CHROMA_PERSIST_DIR", "chroma_db")
+    docs_path: str = _default_dir("DOCS_PATH", "docs")
     chunk_size: int = 800
     chunk_overlap: int = 150
     top_k: int = 8
@@ -44,8 +67,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-# para asegurar que las carpetas temporales existan al iniciar en Render
-if IS_RENDER:
+try:
     os.makedirs(settings.chroma_persist_dir, exist_ok=True)
     os.makedirs(settings.docs_path, exist_ok=True)
+except Exception as e:
+    print(f"Warning creando directorios de persistencia: {e}")
 settings.validate_required()

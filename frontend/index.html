@@ -250,7 +250,9 @@ try{
 
 // config
 
-const API_URL = "http://localhost:8000"; 
+const RENDER_API_URL = "https://agente-lain.onrender.com";
+const LOCAL_API_URL = "http://localhost:8000";
+let API_URL = null;
 
 const LS_HISTORY = "lain_history";
 const LS_INTERACTION = "lain_interaction_id";
@@ -405,33 +407,66 @@ function showStatus(msg, type = "info", duration = 20000) {
 
 //API
 
-async function checkHealth() {
+async function probeBackend(url) {
   try {
-    const res = await fetch(`${API_URL}/health`);
-    if (!res.ok) throw new Error("bad status");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const res = await fetch(`${url}/health`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return false;
     const data = await res.json();
-    connStatus.textContent = "online";
-    connStatus.classList.remove("text-error");
-    connStatus.classList.add("text-primary");
-
+    console.log(`backend activo: ${url}`);
     if (data.documents_loaded && data.documents_loaded.length) {
       const backendName = data.documents_loaded[data.documents_loaded.length - 1];
       setDocument({ name: backendName, type: "pdf", chunks: "—", size_kb: null });
     }
+    return true;
   } catch (e) {
+    return false;
+  }
+}
+
+async function checkHealth() {
+  connStatus.textContent = "esperando backend :c";
+  connStatus.classList.remove("text-primary");
+  connStatus.classList.add("text-error");
+  inputEl.disabled = true;
+  sendBtn.disabled = true;
+  uploadBtn.disabled = true;
+
+  if (await probeBackend(RENDER_API_URL)) {
+    API_URL = RENDER_API_URL;
+    connStatus.textContent = "online";
+    connStatus.classList.remove("text-error");
+    connStatus.classList.add("text-primary");
+  } else if (await probeBackend(LOCAL_API_URL)) {
+    API_URL = LOCAL_API_URL;
+    connStatus.textContent = "online";
+    connStatus.classList.remove("text-error");
+    connStatus.classList.add("text-primary");
+  } else {
+    API_URL = null;
     connStatus.textContent = "offline — revisar el backend :c";
     connStatus.classList.remove("text-primary");
     connStatus.classList.add("text-error");
   }
+
+  const enabled = Boolean(API_URL);
+  inputEl.disabled = !enabled;
+  sendBtn.disabled = !enabled;
+  uploadBtn.disabled = !enabled;
 }
 
 async function uploadFile(file) {
+  if (!API_URL) {
+    showStatus("Error: backend no disponible", "error", 20000);
+    return;
+  }
+
   const formData = new FormData();
   formData.append("file", file);
 
   const ext = file.name.split(".").pop().toLowerCase();
-  
-  //inicio de carga
   showStatus(`Subiendo ${file.name}...`, "info", 10000);
   try {
     const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
@@ -449,6 +484,11 @@ async function uploadFile(file) {
 }
 
 async function askQuestion(question) {
+  if (!API_URL) {
+    showStatus("Error: backend no disponible", "error", 20000);
+    return;
+  }
+
   history.push({ role: "user", text: question });
   saveHistory(history);
   renderAll();
@@ -515,6 +555,8 @@ newChatBtn.addEventListener("click", () => {
   history = [];
   saveHistory(history);
   clearInteractionId();
+  removeDocument();
+  renderBuffer();
   renderAll();
 });
 

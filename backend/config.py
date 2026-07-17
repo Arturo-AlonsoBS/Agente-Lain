@@ -1,6 +1,7 @@
 """
 Configuración centralizada. Lee variables desde .env
 """
+import os
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -8,11 +9,11 @@ from typing import List
 class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = ""
-    llm_model: str = "gemini-3.5-flash"
+    llm_model: str = "gemma-4-31b-it"
 
     # RAG
-    chroma_persist_dir: str = "./data/chroma_db"
-    docs_path: str = "./data/docs"
+    chroma_persist_dir: str = "/tmp/chroma_db" if IS_RENDER else "./data/chroma_db"
+    docs_path: str = "/tmp/docs" if IS_RENDER else "./data/docs"
     chunk_size: int = 800
     chunk_overlap: int = 150
     top_k: int = 8
@@ -43,4 +44,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+# para asegurar que las carpetas temporales existan al iniciar en Render
+if IS_RENDER:
+    os.makedirs(settings.chroma_persist_dir, exist_ok=True)
+    os.makedirs(settings.docs_path, exist_ok=True)
 settings.validate_required()

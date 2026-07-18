@@ -9,7 +9,3 @@ backend/.venv/
 backend/data/chroma_db/
 backend/data/docs/*
 !backend/data/docs/.gitkeep
-
-
-README.md
-.venv

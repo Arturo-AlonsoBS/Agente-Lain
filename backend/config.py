@@ -6,8 +6,6 @@ import tempfile
 from pydantic_settings import BaseSettings
 from typing import List
 
-IS_RENDER = "RENDER" in os.environ
-
 def _writable_tmp_dir() -> str | None:
     """Retorna un directorio temporal escribible para este entorno."""
     if os.name == "nt":
@@ -39,7 +37,6 @@ class Settings(BaseSettings):
     llm_model: str = "gemma-4-31b-it"
 
     # RAG
-    chroma_persist_dir: str = _default_dir("CHROMA_PERSIST_DIR", "chroma_db")
     docs_path: str = _default_dir("DOCS_PATH", "docs")
     chunk_size: int = 800
     chunk_overlap: int = 150
@@ -71,10 +68,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-print(f"Using chroma_persist_dir={settings.chroma_persist_dir}")
 print(f"Using docs_path={settings.docs_path}")
 try:
-    os.makedirs(settings.chroma_persist_dir, exist_ok=True)
     os.makedirs(settings.docs_path, exist_ok=True)
 except Exception as e:
     print(f"Warning creando directorios de persistencia: {e}")

@@ -132,7 +132,23 @@ El backend está alojado en Render y el frontend en GitHub Pages. El deploy auto
 <img src="frontend/assets/captura_render.png" width="200" alt="Deploy en Render">
 </p>
 
-**Video Demostrativo:** [Ver Demo en YouTube](lUEGO LO VOY A GRABAR...,)
+---
 
-**Autor:** Arturo Alonso  
+## A tener en cuenta...
+
+**Si la app muestra "offline" al abrir**, probá desactivar temporalmente bloqueadores de anuncios/privacidad (uBlock, Brave Shields, etc.) o probar en otro navegador/perfil. Algunas extensiones bloquean las peticiones de verificación de estado (`/health`) hacia el backend.
+
+**El backend corre en el plan gratuito de Render**, que "duerme" tras un rato sin uso. Al abrir el frontend, este intenta despertarlo automáticamente, pero Render puede tardar más de 30 segundos en levantar cuando estaba dormido — más de lo que el frontend espera en el primer intento.
+
+Si ves "offline" o errores de conexión en la consola al entrar:
+
+1. Esperá unos 30-45 segundos (el backend ya se está levantando en segundo plano).
+2. Recargá la página (F5). Debería mostrar "online" en ese segundo intento.
+
+---
+### Video Demostrativo
+[Ver Demo en YouTube](https://youtu.be/8fYgY3Vy06o)
+
+### Autor
+**Arturo Alonso**
 *Proyecto para Oracle Next Education (ONE).*
